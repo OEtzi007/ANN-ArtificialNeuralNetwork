@@ -8,7 +8,6 @@
 // neural-net-tutorial.cpp
 // David Miller, http://millermattson.com/dave
 // See the associated video for instructions: http://vimeo.com/19569529
-
 #include <vector>
 #include <iostream>
 #include <cstdlib>
@@ -16,6 +15,8 @@
 #include <cmath>
 #include <fstream>
 #include <sstream>
+
+#include "TrainingCreator.h"
 
 using namespace std;
 
@@ -343,7 +344,8 @@ void showVectorVals(string label, vector<double> &v) {
 }
 
 int main() {
-	TrainingData trainData("/tmp/trainingData.txt");
+	TrainingCreator train;
+	TrainingData trainData("trainingData.txt");
 
 	// e.g., { 3, 2, 1 }
 	vector<unsigned> topology;
