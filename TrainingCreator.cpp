@@ -13,9 +13,9 @@
 
 TrainingCreator::TrainingCreator() {
 	// TODO Auto-generated constructor stub
-	topology.push_back(8);
-	topology.push_back(12);
-	topology.push_back(5);
+	topology.push_back(4);
+	topology.push_back(10);
+	topology.push_back(2);
 	std::ofstream myfile;
 	myfile.open("trainingData.txt");
 	myfile << "topology:";
@@ -45,31 +45,29 @@ double TrainingCreator::dxor(double one, double two) {
 }
 
 void TrainingCreator::funcouts() {
-	assert(randomInputs[0].size() == 8);
+	assert(randomInputs[0].size() == 4);
 	for (unsigned i = 0; i < randomInputs.size(); i++) {
 		std::vector<double> output;
-		double carry = -1;
-		for (unsigned j = 0; j < 4; j++) {
-			output.push_back(
-					dxor(carry,
-							dxor(randomInputs[i][j], randomInputs[i][4 + j])));
-			carry = carry + randomInputs[i][j] + randomInputs[i][j + 4] >= 1 ?
-					1 : -1;
+		double sum = 0;
+		for (unsigned j = 0; j < randomInputs[i].size(); j++)
+			sum += 1 + randomInputs[i][j];
+		for (unsigned j = 0; j < 2; j++) {
+			output.push_back(int(sum) % 3 - 1);
+			sum = (sum - int(sum) % 3) / 3;
 		}
-		output.push_back(carry);
 		outputs.push_back(output);
 	}
 }
 
 void TrainingCreator::funcins() {
-	for (int i = 0; i < 100000; i++) {
+	for (int i = 0; i < 1000000; i++) {
 		std::vector<double> newelement;
 		for (unsigned j = 0; j < topology[0]; j++)
-			newelement.push_back(rand() % 2 == 0 ? 1 : -1);
+			newelement.push_back(rand() % 3 - 1);
 		double sum = 0;
 		for (unsigned j = 0; j < topology[0]; j++)
 			sum += newelement[j];
-		if (sum >= topology[0])
+		if (sum >= topology[0]+1)
 			--i;
 		else
 			randomInputs.push_back(newelement);

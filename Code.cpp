@@ -155,10 +155,10 @@ private:
 	std::list<bool> lastShots;
 };
 /*
-double Neuron::eta = 0.15;    // overall net learning rate, [0.0..1.0]
-double Neuron::alpha = 0.5; // momentum, multiplier of last deltaWeight, [0.0..1.0]
-*/
-double Neuron::eta = 0.03; //approx 0.15/outpus
+ double Neuron::eta = 0.15;    // overall net learning rate, [0.0..1.0]
+ double Neuron::alpha = 0.5; // momentum, multiplier of last deltaWeight, [0.0..1.0]
+ */
+double Neuron::eta = 0.015; //approx 0.15/outputs TODO change eta
 double Neuron::alpha = 0.5;
 
 unsigned Neuron::averageFireRate = 500;
@@ -222,9 +222,9 @@ double Neuron::transferFunction(double x) {
 double Neuron::transferFunctionDerivative(double x) {
 	// tanh derivative
 	//TODO:return 1.0 - x * x;
-	return 1.0 - x * x * (1 - 0.45 * x * x);
-	//double tan = tanh(x);
-	//return 1.0-tan*tan;
+	//return 1.0 - x * x * (1 - 0.45 * x * x);
+	double tan = tanh(x);
+	return 1.0-tan*tan;
 }
 
 void Neuron::feedForward(const Layer &prevLayer) {
@@ -344,7 +344,7 @@ void Net::loadNet(const string filename) {
 double Net::m_recentAverageSmoothingFactor = 100.0; // Number of training samples to average over
 unsigned Net::savewidth = 10;
 unsigned Net::saveprec = 5;
-double Net::threshold = 0.95;
+double Net::threshold = 0.55;
 
 void Net::getResults(vector<double> &resultVals) const {
 	resultVals.clear();
@@ -488,6 +488,6 @@ int main() {
 		cout << "Net recent average error: " << myNet.getRecentAverageError()
 				<< endl;
 	}
-	myNet.saveNet("BinaryAdder.net");
+	myNet.saveNet("TrinaryAdder.net");
 	cout << endl << "Done" << endl;
 }
