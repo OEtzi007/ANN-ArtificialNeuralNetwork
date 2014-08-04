@@ -13,9 +13,8 @@
 
 TrainingCreator::TrainingCreator() {
 	// TODO Auto-generated constructor stub
-	rand();
 	topology.push_back(8);
-	topology.push_back(10);
+	topology.push_back(12);
 	topology.push_back(5);
 	std::ofstream myfile;
 	myfile.open("trainingData.txt");
@@ -35,7 +34,6 @@ TrainingCreator::TrainingCreator() {
 		myfile << std::endl;
 	}
 	myfile.close();
-	std::cout << "Hello";
 }
 
 TrainingCreator::~TrainingCreator() {

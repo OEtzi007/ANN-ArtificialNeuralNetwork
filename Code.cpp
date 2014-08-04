@@ -9,12 +9,14 @@
 // David Miller, http://millermattson.com/dave
 // See the associated video for instructions: http://vimeo.com/19569529
 #include <vector>
+#include <list>
 #include <iostream>
 #include <cstdlib>
 #include <cassert>
 #include <cmath>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
 
 #include "TrainingCreator.h"
 
@@ -118,6 +120,7 @@ public:
 	Neuron(unsigned numOutputs, unsigned myIndex);
 	void setOutputVal(double val) {
 		m_outputVal = val;
+		updateFireRate();
 	}
 	double getOutputVal(void) const {
 		return m_outputVal;
@@ -126,24 +129,48 @@ public:
 	void calcOutputGradients(double targetVal);
 	void calcHiddenGradients(const Layer &nextLayer);
 	void updateInputWeights(Layer &prevLayer);
+	std::vector<Connection> getOutputWeights() const {
+		return m_outputWeights;
+	}
+	double getFireRate() const {
+		return fireRate;
+	}
 
 private:
 	static double eta;   // [0.0..1.0] overall net training rate
 	static double alpha; // [0.0..n] multiplier of last weight change (momentum)
+	static unsigned averageFireRate;
 	static double transferFunction(double x);
 	static double transferFunctionDerivative(double x);
 	static double randomWeight(void) {
 		return rand() / double(RAND_MAX);
 	}
 	double sumDOW(const Layer &nextLayer) const;
+	void updateFireRate();
 	double m_outputVal;
 	vector<Connection> m_outputWeights;
 	unsigned m_myIndex;
 	double m_gradient;
+	double fireRate;
+	std::list<bool> lastShots;
 };
-
+/*
 double Neuron::eta = 0.15;    // overall net learning rate, [0.0..1.0]
 double Neuron::alpha = 0.5; // momentum, multiplier of last deltaWeight, [0.0..1.0]
+*/
+double Neuron::eta = 0.03; //approx 0.15/outpus
+double Neuron::alpha = 0.5;
+
+unsigned Neuron::averageFireRate = 500;
+
+void Neuron::updateFireRate() {
+	lastShots.push_back(m_outputVal > 0);
+	fireRate += lastShots.back() / double(averageFireRate);
+	if (lastShots.size() > averageFireRate) {
+		fireRate -= lastShots.front() / double(averageFireRate);
+		lastShots.pop_front();
+	}
+}
 
 void Neuron::updateInputWeights(Layer &prevLayer) {
 	// The weights to be updated are in the Connection container
@@ -194,7 +221,10 @@ double Neuron::transferFunction(double x) {
 
 double Neuron::transferFunctionDerivative(double x) {
 	// tanh derivative
-	return 1.0 - x * x;
+	//TODO:return 1.0 - x * x;
+	return 1.0 - x * x * (1 - 0.45 * x * x);
+	//double tan = tanh(x);
+	//return 1.0-tan*tan;
 }
 
 void Neuron::feedForward(const Layer &prevLayer) {
@@ -209,6 +239,7 @@ void Neuron::feedForward(const Layer &prevLayer) {
 	}
 
 	m_outputVal = Neuron::transferFunction(sum);
+	updateFireRate();
 }
 
 Neuron::Neuron(unsigned numOutputs, unsigned myIndex) {
@@ -230,15 +261,90 @@ public:
 	double getRecentAverageError(void) const {
 		return m_recentAverageError;
 	}
+	void saveNet(const string filename) const;
+	void loadNet(const string filename);
 
 private:
 	vector<Layer> m_layers; // m_layers[layerNum][neuronNum]
 	double m_error;
 	double m_recentAverageError;
 	static double m_recentAverageSmoothingFactor;
+
+	static unsigned savewidth;
+	static unsigned saveprec;
+	static double threshold;
 };
 
+void Net::saveNet(const string filename) const {
+	std::ofstream myfile;
+	myfile.open(filename.c_str());
+	myfile << setprecision(saveprec);
+
+	myfile << "topology:";
+	unsigned maximumLayer = 0;
+	for (unsigned i = 0; i < m_layers.size(); i++) {
+		myfile << " " << m_layers[i].size() - 1;
+		if (m_layers[i].size() - 1 > maximumLayer)
+			maximumLayer = m_layers[i].size() - 1;
+	}
+	for (unsigned i = 0; i < m_layers.size() - 1; i++) {
+		myfile << std::endl << std::endl << "ANN from layer " << i
+				<< " to layer " << i + 1 << ":" << std::endl
+				<< std::setw(savewidth) << " ";
+		for (unsigned j = 0; j < m_layers[i + 1].size() - 1; j++)
+			myfile << std::setw(savewidth) << j;
+		for (unsigned j = 0; j < m_layers[i].size(); j++) {
+			myfile << std::endl << std::setw(savewidth) << j;
+			for (unsigned k = 0; k < m_layers[i + 1].size() - 1; k++)
+				myfile << std::setw(savewidth)
+						<< m_layers[i][j].getOutputWeights()[k].weight;
+		}
+	}
+	myfile << std::endl << std::endl
+			<< "Neurons, that fire almost every time (threshold=" << threshold
+			<< "):" << std::endl;
+	myfile << setw(2) << " ";
+	for (unsigned i = 0; i < m_layers.size(); i++)
+		myfile << setw(2) << i;
+	for (unsigned i = 0; i < maximumLayer; i++) {
+		myfile << std::endl;
+		myfile << setw(2) << i;
+		for (unsigned j = 0; j < m_layers.size(); j++) {
+			if (m_layers[j].size() - 1 > i)
+				myfile << setw(2)
+						<< (m_layers[j][i].getFireRate() > threshold ? "X" : "O");
+			else
+				myfile << setw(2) << " ";
+		}
+	}
+	myfile << std::endl << std::endl
+			<< "Neurons, that fire almost not once (threshold=" << 1 - threshold
+			<< "):" << std::endl;
+	myfile << setw(2) << " ";
+	for (unsigned i = 0; i < m_layers.size(); i++)
+		myfile << setw(2) << i;
+	for (unsigned i = 0; i < maximumLayer; i++) {
+		myfile << std::endl;
+		myfile << setw(2) << i;
+		for (unsigned j = 0; j < m_layers.size(); j++) {
+			if (m_layers[j].size() - 1 > i)
+				myfile << setw(2)
+						<< (m_layers[j][i].getFireRate() < 1 - threshold ?
+								"X" : "O");
+			else
+				myfile << setw(2) << " ";
+		}
+	}
+	myfile.close();
+}
+
+void Net::loadNet(const string filename) {
+}
+
 double Net::m_recentAverageSmoothingFactor = 100.0; // Number of training samples to average over
+unsigned Net::savewidth = 10;
+unsigned Net::saveprec = 5;
+double Net::threshold = 0.95;
 
 void Net::getResults(vector<double> &resultVals) const {
 	resultVals.clear();
@@ -249,7 +355,7 @@ void Net::getResults(vector<double> &resultVals) const {
 }
 
 void Net::backProp(const vector<double> &targetVals) {
-	// Calculate overall net error (RMS of output neuron errors)
+// Calculate overall net error (RMS of output neuron errors)
 
 	Layer &outputLayer = m_layers.back();
 	m_error = 0.0;
@@ -261,19 +367,19 @@ void Net::backProp(const vector<double> &targetVals) {
 	m_error /= outputLayer.size() - 1; // get average error squared
 	m_error = sqrt(m_error); // RMS
 
-	// Implement a recent average measurement
+// Implement a recent average measurement
 
 	m_recentAverageError = (m_recentAverageError
 			* m_recentAverageSmoothingFactor + m_error)
 			/ (m_recentAverageSmoothingFactor + 1.0);
 
-	// Calculate output layer gradients
+// Calculate output layer gradients
 
 	for (unsigned n = 0; n < outputLayer.size() - 1; ++n) {
 		outputLayer[n].calcOutputGradients(targetVals[n]);
 	}
 
-	// Calculate hidden layer gradients
+// Calculate hidden layer gradients
 
 	for (unsigned layerNum = m_layers.size() - 2; layerNum > 0; --layerNum) {
 		Layer &hiddenLayer = m_layers[layerNum];
@@ -284,8 +390,8 @@ void Net::backProp(const vector<double> &targetVals) {
 		}
 	}
 
-	// For all layers from outputs to first hidden layer,
-	// update connection weights
+// For all layers from outputs to first hidden layer,
+// update connection weights
 
 	for (unsigned layerNum = m_layers.size() - 1; layerNum > 0; --layerNum) {
 		Layer &layer = m_layers[layerNum];
@@ -300,12 +406,12 @@ void Net::backProp(const vector<double> &targetVals) {
 void Net::feedForward(const vector<double> &inputVals) {
 	assert(inputVals.size() == m_layers[0].size() - 1);
 
-	// Assign (latch) the input values into the input neurons
+// Assign (latch) the input values into the input neurons
 	for (unsigned i = 0; i < inputVals.size(); ++i) {
 		m_layers[0][i].setOutputVal(inputVals[i]);
 	}
 
-	// forward propagate
+// forward propagate
 	for (unsigned layerNum = 1; layerNum < m_layers.size(); ++layerNum) {
 		Layer &prevLayer = m_layers[layerNum - 1];
 		for (unsigned n = 0; n < m_layers[layerNum].size() - 1; ++n) {
@@ -321,15 +427,15 @@ Net::Net(const vector<unsigned> &topology) {
 		unsigned numOutputs =
 				layerNum == topology.size() - 1 ? 0 : topology[layerNum + 1];
 
-		// We have a new layer, now fill it with neurons, and
-		// add a bias neuron in each layer.
+// We have a new layer, now fill it with neurons, and
+// add a bias neuron in each layer.
 		for (unsigned neuronNum = 0; neuronNum <= topology[layerNum];
 				++neuronNum) {
 			m_layers.back().push_back(Neuron(numOutputs, neuronNum));
 			cout << "Made a Neuron!" << endl;
 		}
 
-		// Force the bias node's output to 1.0 (it was the last neuron pushed in this layer):
+// Force the bias node's output to 1.0 (it was the last neuron pushed in this layer):
 		m_layers.back().back().setOutputVal(1.0);
 	}
 }
@@ -347,7 +453,7 @@ int main() {
 	TrainingCreator train;
 	TrainingData trainData("trainingData.txt");
 
-	// e.g., { 3, 2, 1 }
+// e.g., { 3, 2, 1 }
 	vector<unsigned> topology;
 	trainData.getTopology(topology);
 
@@ -360,28 +466,28 @@ int main() {
 		++trainingPass;
 		cout << endl << "Pass " << trainingPass;
 
-		// Get new input data and feed it forward:
+// Get new input data and feed it forward:
 		if (trainData.getNextInputs(inputVals) != topology[0]) {
 			break;
 		}
 		showVectorVals(": Inputs:", inputVals);
 		myNet.feedForward(inputVals);
 
-		// Collect the net's actual output results:
+// Collect the net's actual output results:
 		myNet.getResults(resultVals);
 		showVectorVals("Outputs:", resultVals);
 
-		// Train the net what the outputs should have been:
+// Train the net what the outputs should have been:
 		trainData.getTargetOutputs(targetVals);
 		showVectorVals("Targets:", targetVals);
 		assert(targetVals.size() == topology.back());
 
 		myNet.backProp(targetVals);
 
-		// Report how well the training is working, average over recent samples:
+// Report how well the training is working, average over recent samples:
 		cout << "Net recent average error: " << myNet.getRecentAverageError()
 				<< endl;
 	}
-
+	myNet.saveNet("BinaryAdder.net");
 	cout << endl << "Done" << endl;
 }
